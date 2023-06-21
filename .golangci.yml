@@ -1,0 +1,33 @@
+# More specification https://golangci-lint.run/usage/configuration/#config-file
+run:
+  tests: false
+  skip-dirs:
+    - mocks
+    - docs
+    - test
+linters:
+  # Enable specific linter
+  # https://golangci-lint.run/usage/linters/#enabled-by-default
+  enable:
+    - exportloopref    # Checks for pointers to enclosing loop variables                              - bugs
+    - funlen           # Tool for detection of long functions                                         - complexity
+    - cyclop           # Checks function and package cyclomatic complexity	                          - complexity
+    - gocritic         # Provides diagnostics that check for bugs, performance and style issues.      - style, metalinter
+    - goconst          # Finds repeated strings that could be replaced by a constant                  - style
+    - gocognit         # Computes and checks the cognitive complexity of functions	                  - complexity
+    #- revive          # Fast, configurable, extensible, flexible, and beautiful linter for Go        - style, metalinter
+    - prealloc         # Finds slice declarations that could potentially be pre-allocated	          - performance
+    - dupl             # Tool for code clone detection                                                - style
+    - errorlint        # Find code that will cause problems with the error wrapping scheme            - bugs, error
+    # - bodyclose        # Checks whether HTTP response body is closed successfully	                  - performance, bugs
+    - gosec            # Inspects source code for security problems	                                  - bugs
+
+linters-settings:
+  revive:
+    rules:
+      - name: var-naming
+        severity: warning
+        disabled: false
+        arguments: [ [ "ID","API","URI","HTTP" ], [ "" ] ] #first AllowList second DenyList
+  errorlint:
+    errorf: false
