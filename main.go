@@ -20,14 +20,7 @@ func main() {
 	applicationConfig, _ := configInstance.GetConfig()
 	kafka := getConsumer(applicationConfig)
 	redis := client.NewRedisService(applicationConfig.Redis)
-	searchData := &model.SearchData{
-		PodName:     os.Getenv("POD_NAME"),
-		Key:         os.Getenv("KEY"),
-		Topic:       os.Getenv("TOPIC"),
-		Value:       os.Getenv("VALUE"),
-		MetadataKey: os.Getenv("METADATA_KEY"),
-	}
-
+	searchData := model.NewSearchData()
 	sh := handler.NewConsumeHandler(kafka, redis, applicationConfig, searchData)
 	sh.Handle()
 

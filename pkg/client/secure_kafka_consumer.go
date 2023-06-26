@@ -80,8 +80,9 @@ func createTLSConfig(kafkaConfig *config.KafkaConfig) *tls.Config {
 	caCertPool.AppendCertsFromPEM(rootCA)
 
 	return &tls.Config{
-		RootCAs:    caCertPool,
-		MinVersion: tls.VersionTLS12,
+		RootCAs:            caCertPool,
+		MinVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: true,
 	}
 }
 

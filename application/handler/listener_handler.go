@@ -3,6 +3,7 @@ package handler
 import (
 	"bee-search/pkg/client"
 	"bee-search/pkg/model"
+	"bee-search/pkg/model/valuetype"
 	"context"
 	"encoding/json"
 	"errors"
@@ -24,22 +25,27 @@ func NewListenerHandler(sd *model.SearchData, consumer client.KafkaConsumer, par
 }
 
 func (l *ListenerHandler) Handle() {
-	sd := time.Now().UTC().UnixMilli()
+	ctx, cancel := context.WithCancel(context.Background())
 	kc := l.c.CreateConsumer(l.searchData.Topic, l.partitionId)
 	defer kc.Close()
-	ctx, cancel := context.WithCancel(context.Background())
+	//_ = kc.SetOffsetAt(ctx, time.UnixMilli(l.searchData.StartDate))
+	endDate := time.Now().UTC().UnixMilli()
 	t := time.AfterFunc(time.Second*10, func() {
 		cancel()
 	})
 
+	checkKey := l.searchData.ValueType>>valuetype.KEY&1 == 1
+	checkValue := l.searchData.ValueType>>valuetype.VALUE&1 == 1
+	checkHeader := l.searchData.ValueType>>valuetype.HEADER&1 == 1
+
 	for {
 		m, err := kc.ReadMessage(ctx)
-		if err != nil || m.Time.UnixMilli() > sd {
+		if err != nil || m.Time.UnixMilli() > endDate {
 			break
 		}
 
 		t.Reset(time.Second * 5)
-		if m.Key != nil && len(m.Key) > 0 {
+		if checkKey && m.Key != nil && len(m.Key) > 0 {
 			kStr := string(m.Key)
 			has := strings.Contains(kStr, l.searchData.Value)
 			if has {
@@ -51,7 +57,7 @@ func (l *ListenerHandler) Handle() {
 			}
 		}
 
-		if m.Value != nil && len(m.Value) > 0 {
+		if checkValue && m.Value != nil && len(m.Value) > 0 {
 			vStr := string(m.Value)
 			has := strings.Contains(vStr, l.searchData.Value)
 			if has {
@@ -60,6 +66,24 @@ func (l *ListenerHandler) Handle() {
 					break
 				}
 				continue
+			}
+		}
+
+		if checkHeader && m.Headers != nil && len(m.Headers) > 0 {
+			headerFounded := false
+			for i := range m.Headers {
+				h := m.Headers[i]
+				hasKey := strings.Contains(h.Key, l.searchData.Value)
+				hasValue := strings.Contains(string(h.Value), l.searchData.Value)
+				if hasKey || hasValue {
+					l.founded(&m)
+					headerFounded = true
+					break
+				}
+			}
+
+			if headerFounded && l.isReachLimit() {
+				break
 			}
 		}
 	}
@@ -77,21 +101,38 @@ func (l *ListenerHandler) isReachLimit() bool {
 }
 
 func (l *ListenerHandler) founded(m *kafka.Message) {
-	sec := map[string]interface{}{}
-	if err := json.Unmarshal(m.Value, &sec); err != nil {
+	value := map[string]interface{}{}
+	if err := json.Unmarshal(m.Value, &value); err != nil {
 		l.r.SearchException(l.searchData.Key, err)
 		return
 	}
-	sec["__kafka_offset"] = m.Offset
-	sec["__kafka_partition"] = m.Partition
-	sec["__kafka_publish_date_utc"] = m.Time.UnixMilli()
+
+	data := map[string]interface{}{}
+	data["value"] = value
+
+	data["offset"] = m.Offset
+	data["partition"] = m.Partition
+	data["publish_date_utc"] = m.Time.UnixMilli()
 	if m.Key != nil && len(m.Key) > 0 {
-		sec["__kafka_key"] = string(m.Key)
+		data["key"] = string(m.Key)
 	}
-	value, err := json.Marshal(sec)
+
+	if m.Headers != nil && len(m.Headers) > 0 {
+		var headers []map[string]string
+		for i := range m.Headers {
+			header := m.Headers[i]
+			hm := map[string]string{}
+			hm[header.Key] = string(header.Value)
+			headers = append(headers, hm)
+		}
+
+		data["headers"] = headers
+	}
+
+	d, err := json.Marshal(data)
 	if err != nil {
 		l.r.SearchException(l.searchData.Key, err)
 		return
 	}
-	l.r.Save(l.searchData.Key, string(value))
+	l.r.Save(l.searchData.Key, string(d))
 }
