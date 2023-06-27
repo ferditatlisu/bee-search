@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bee-search/pkg/client"
+	"bee-search/pkg/logger"
 	"bee-search/pkg/model"
 	"bee-search/pkg/model/valuetype"
 	"context"
@@ -25,26 +26,26 @@ func NewListenerHandler(sd *model.SearchData, consumer client.KafkaConsumer, par
 }
 
 func (l *ListenerHandler) Handle() {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx := context.Background()
 	kc := l.c.CreateConsumer(l.searchData.Topic, l.partitionId)
 	defer kc.Close()
 	//_ = kc.SetOffsetAt(ctx, time.UnixMilli(l.searchData.StartDate))
+	lag, _ := kc.ReadLag(ctx)
 	endDate := time.Now().UTC().UnixMilli()
-	t := time.AfterFunc(time.Second*10, func() {
-		cancel()
-	})
-
 	checkKey := l.searchData.ValueType>>valuetype.KEY&1 == 1
 	checkValue := l.searchData.ValueType>>valuetype.VALUE&1 == 1
 	checkHeader := l.searchData.ValueType>>valuetype.HEADER&1 == 1
 
 	for {
-		m, err := kc.ReadMessage(ctx)
-		if err != nil || m.Time.UnixMilli() > endDate {
+		if lag <= 0 {
 			break
 		}
+		m, err := kc.ReadMessage(ctx)
+		if err != nil || m.Time.UnixMilli() > endDate {
+			logger.Logger().Info(err.Error())
+		}
+		lag -= 1
 
-		t.Reset(time.Second * 5)
 		if checkKey && m.Key != nil && len(m.Key) > 0 {
 			kStr := string(m.Key)
 			has := strings.Contains(kStr, l.searchData.Value)
