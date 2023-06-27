@@ -41,10 +41,14 @@ func (l *ListenerHandler) Handle() {
 			break
 		}
 		m, err := kc.ReadMessage(ctx)
-		if err != nil || m.Time.UnixMilli() > endDate {
+		lag -= 1
+		if m.Time.UnixMilli() > endDate {
+			break
+		}
+
+		if err != nil {
 			logger.Logger().Info(err.Error())
 		}
-		lag -= 1
 
 		if checkKey && m.Key != nil && len(m.Key) > 0 {
 			kStr := string(m.Key)
