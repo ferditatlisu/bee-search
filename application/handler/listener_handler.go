@@ -29,9 +29,9 @@ func (l *ListenerHandler) Handle() {
 	ctx := context.Background()
 	kc := l.c.CreateConsumer(l.searchData.Topic, l.partitionId)
 	defer kc.Close()
-	//_ = kc.SetOffsetAt(ctx, time.UnixMilli(l.searchData.StartDate))
+	_ = kc.SetOffsetAt(ctx, time.UnixMilli(l.searchData.StartDate))
 	lag, _ := kc.ReadLag(ctx)
-	endDate := time.Now().UTC().UnixMilli()
+	endDate := l.searchData.EndDate
 	checkKey := l.searchData.ValueType>>valuetype.KEY&1 == 1
 	checkValue := l.searchData.ValueType>>valuetype.VALUE&1 == 1
 	checkHeader := l.searchData.ValueType>>valuetype.HEADER&1 == 1
